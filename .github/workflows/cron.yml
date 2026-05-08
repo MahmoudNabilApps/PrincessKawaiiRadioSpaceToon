@@ -1,0 +1,48 @@
+name: Radio Cron Runner
+
+on:
+  schedule:
+    - cron: '* * * * *'
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Solve AES Challenge & Run Cron
+        run: |
+          pip install pycryptodome requests -q
+
+          python3 << 'EOF'
+          import re, sys
+          import requests
+          from Crypto.Cipher import AES
+
+          URL = "https://princesskawaiiradio.iceiy.com/cron/update_radio_data.php?key=DarkMoSecureKey123"
+
+          HEADERS = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+          }
+
+          r1 = requests.get(URL, headers=HEADERS, allow_redirects=False)
+          html = r1.text
+
+          try:
+              a = bytes.fromhex(re.search(r'a=toNumbers\("([0-9a-f]+)"\)', html).group(1))
+              b = bytes.fromhex(re.search(r'b=toNumbers\("([0-9a-f]+)"\)', html).group(1))
+              c = bytes.fromhex(re.search(r'c=toNumbers\("([0-9a-f]+)"\)', html).group(1))
+              cipher = AES.new(a, AES.MODE_CBC, b)
+              cookie_value = cipher.decrypt(c).hex()
+              print(f"✅ Solved: __test={cookie_value}")
+              cookies = {"__test": cookie_value}
+              r2 = requests.get(URL + "&i=1", headers=HEADERS, cookies=cookies)
+              print(f"Status: {r2.status_code}")
+              print(r2.text)
+              if r2.status_code != 200:
+                  sys.exit(1)
+          except AttributeError:
+              print("⚡ No challenge - direct response:")
+              print(html)
+          EOF
